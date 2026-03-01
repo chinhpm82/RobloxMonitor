@@ -131,11 +131,14 @@ class TelegramService {
     try {
       DatabaseHelper.logSystemEvent("macOS: Starting capture to $outputPath");
       
-      // Use absolute path for robustness on macOS
+      // /usr/sbin/screencapture is the correct path on macOS
+      // -x: no sound, -t png: format
       final result = await Process.run('/usr/sbin/screencapture', ['-x', '-t', 'png', outputPath]);
       
+      DatabaseHelper.logSystemEvent("macOS: screencapture exit=${result.exitCode} stdout='${result.stdout}' stderr='${result.stderr}'");
+      
       if (result.exitCode != 0) {
-        DatabaseHelper.logSystemEvent("macOS: screencapture failed (code ${result.exitCode}). Stderr: ${result.stderr}", level: 'ERROR');
+        DatabaseHelper.logSystemEvent("macOS: screencapture failed (code ${result.exitCode}) Stderr: ${result.stderr}", level: 'ERROR');
         return false;
       }
       
@@ -146,7 +149,7 @@ class TelegramService {
         DatabaseHelper.logSystemEvent("macOS: Capture saved ($size bytes)");
         return size > 0;
       } else {
-        DatabaseHelper.logSystemEvent("macOS: screencapture returned 0 but file missing", level: 'ERROR');
+        DatabaseHelper.logSystemEvent("macOS: screencapture returned 0 but file missing. Check Screen Recording permission.", level: 'ERROR');
         return false;
       }
     } catch (e) {

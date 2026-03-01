@@ -46,8 +46,10 @@ class NativeService {
     try {
       // Remove .exe suffix if present (from Windows config)
       final name = processName.replaceAll('.exe', '');
-      // pgrep -fi matches any part of the process name/path case-insensitively
-      final result = Process.runSync('pgrep', ['-fi', name]);
+      // pgrep -ix matches the process name exactly (case-insensitive)
+      // Do NOT use -f flag as it matches against full command line path,
+      // which causes false positives (e.g. matching this app's own path)
+      final result = Process.runSync('pgrep', ['-ix', name]);
       return result.exitCode == 0;
     } catch (e) {
       debugPrint("MacOS Process Check Error: $e");
