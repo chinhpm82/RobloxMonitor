@@ -3,6 +3,7 @@ import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:roblox_monitor/services/app_state.dart';
+import 'package:roblox_monitor/services/database_helper.dart';
 import 'package:roblox_monitor/services/system_tray_manager.dart';
 import 'package:roblox_monitor/ui/config_dialog.dart';
 import 'package:roblox_monitor/ui/home_page.dart';
@@ -20,6 +21,11 @@ void main() async {
 
     final appState = AppState();
     
+    // Install LaunchAgent on macOS for auto-start
+    if (Platform.isMacOS) {
+      _installLaunchAgentIfNeeded();
+    }
+    
     // Initialize tray asynchronously
     Future.delayed(const Duration(milliseconds: 100), () {
       SystemTrayManager(appState).init().catchError((e) => debugPrint("Tray Error: $e"));
@@ -33,6 +39,62 @@ void main() async {
     );
   } catch (e) {
     runApp(MaterialApp(home: Scaffold(body: Center(child: Text("Startup Error: $e")))));
+  }
+}
+
+/// Installs a macOS LaunchAgent plist so MoniGuard starts automatically at login
+/// and is restarted if it crashes (KeepAlive = true).
+void _installLaunchAgentIfNeeded() {
+  try {
+    final home = Platform.environment['HOME'] ?? '';
+    if (home.isEmpty) return;
+
+    final agentsDir = Directory('$home/Library/LaunchAgents');
+    if (!agentsDir.existsSync()) agentsDir.createSync(recursive: true);
+
+    final plistPath = '$home/Library/LaunchAgents/com.chinhpm.moniguard.plist';
+    final executablePath = Platform.resolvedExecutable;
+    // MoniGuard.app executable is inside the .app bundle
+    // e.g. /Applications/MoniGuard.app/Contents/MacOS/MoniGuard
+    // We need the .app path for launch
+    String appPath = executablePath;
+    final appBundleIndex = executablePath.indexOf('.app/');
+    if (appBundleIndex != -1) {
+      appPath = executablePath.substring(0, appBundleIndex + 4); // up to and including .app
+    }
+
+    final plistContent = '''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.chinhpm.moniguard</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>open</string>
+        <string>-a</string>
+        <string>$appPath</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StartInterval</key>
+    <integer>0</integer>
+</dict>
+</plist>''';
+
+    final plistFile = File(plistPath);
+    // Only write if content has changed (avoid unnecessary writes)
+    if (!plistFile.existsSync() || plistFile.readAsStringSync() != plistContent) {
+      plistFile.writeAsStringSync(plistContent);
+      // Load/reload the agent
+      Process.run('launchctl', ['unload', plistPath]);
+      Process.run('launchctl', ['load', '-w', plistPath]);
+      DatabaseHelper.logSystemEvent("LaunchAgent installed: $plistPath");
+    }
+  } catch (e) {
+    DatabaseHelper.logSystemEvent("LaunchAgent install error: $e", level: 'WARNING');
   }
 }
 
@@ -89,11 +151,9 @@ class _MainWrapperState extends State<MainWrapper> with WindowListener {
 
   @override
   void onWindowClose() async {
-    bool isPreventClose = await windowManager.isPreventClose();
-    if (isPreventClose) {
-      // Minimize instead of hide so user can reopen from taskbar
-      await windowManager.minimize();
-    }
+    // On macOS: Quit from Dock menu just hides to tray. 
+    // The LaunchAgent will restart if the process is killed.
+    await windowManager.hide();
   }
 
   @override
