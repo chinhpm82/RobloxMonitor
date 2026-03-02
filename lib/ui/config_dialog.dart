@@ -435,6 +435,39 @@ class _ConfigDialogState extends State<ConfigDialog> {
                 }
             },
           ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.camera_alt),
+            label: const Text('Test Chụp Ảnh & Gửi Telegram'),
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.orangeAccent),
+            onPressed: () async {
+               final token = _botTokenController.text;
+               final chat = _chatIdController.text;
+               if (token.isEmpty || chat.isEmpty) {
+                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng nhập Token và Chat ID')));
+                 return;
+               }
+               ScaffoldMessenger.of(context).showSnackBar(
+                 const SnackBar(content: Text('Đang chụp ảnh màn hình...'), duration: Duration(seconds: 2))
+               );
+               bool success = await TelegramService.captureAndSend(
+                 botToken: token,
+                 chatId: chat,
+                 caption: 'Test chụp ảnh từ MoniGuard (${DateTime.now()})',
+               );
+               if (mounted) {
+                 if (success) {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     const SnackBar(content: Text('✅ Chụp ảnh và gửi thành công!'), backgroundColor: Colors.green)
+                   );
+                 } else {
+                   ScaffoldMessenger.of(context).showSnackBar(
+                     const SnackBar(content: Text('❌ Thất bại. Xem Nhật ký hệ thống để biết chi tiết.'), backgroundColor: Colors.red, duration: Duration(seconds: 4))
+                   );
+                 }
+               }
+            },
+          ),
           const SizedBox(height: 32),
           const Divider(),
           const SizedBox(height: 16),
