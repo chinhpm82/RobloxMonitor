@@ -61,8 +61,9 @@ class TelegramService {
     if (botToken.isEmpty || chatId.isEmpty) return false;
 
     try {
-      final directory = await getTemporaryDirectory();
-      final String filePath = p.join(directory.path, 'capture_${DateTime.now().millisecondsSinceEpoch}.png');
+      // Use /tmp/ directly — getTemporaryDirectory() returns the app sandbox cache
+      // which macOS prevents subprocesses (screencapture) from writing to.
+      final String filePath = '/tmp/moniguard_capture_${DateTime.now().millisecondsSinceEpoch}.png';
       
       // Capture using platform-specific command
       bool captured = false;
