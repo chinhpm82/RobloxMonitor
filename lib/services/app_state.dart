@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:roblox_monitor/services/database_helper.dart';
@@ -50,6 +51,14 @@ class AppState extends ChangeNotifier {
   bool _isTransitioning = false;
   WindowMode _windowMode = WindowMode.tray;
 
+  bool _isScreenshotMode = kIsWeb ? false : Platform.isMacOS;
+  bool _isBlockingMode = kIsWeb ? true : !Platform.isMacOS; // Default for Windows is blocking, for macOS is screenshot-only
+
+  int _macOSCaptureCounter = 0; // Add this for 5-min timer
+
+  bool get isScreenshotMode => _isScreenshotMode;
+  bool get isBlockingMode => _isBlockingMode;
+  
   bool get isTransitioning => _isTransitioning;
 
   bool get isMonitorEnabled => _isMonitorEnabled;
@@ -162,6 +171,9 @@ class AppState extends ChangeNotifier {
     _telegramDebounceMinutes = int.tryParse(await DatabaseHelper.getSetting('telegram_debounce') ?? '') ?? 5;
     _telegramMessageTemplate = await DatabaseHelper.getSetting('telegram_template') ?? "Phát hiện nội dung giới hạn: {reason}";
 
+    _isScreenshotMode = (await DatabaseHelper.getSetting('mode_screenshot') ?? (Platform.isMacOS ? 'true' : 'false')) == 'true';
+    _isBlockingMode = (await DatabaseHelper.getSetting('mode_blocking') ?? (Platform.isMacOS ? 'false' : 'true')) == 'true';
+
     notifyListeners();
   }
 
@@ -208,6 +220,21 @@ class AppState extends ChangeNotifier {
     _customApps = apps;
     await DatabaseHelper.saveSetting('custom_keywords', jsonEncode(keywords));
     await DatabaseHelper.saveSetting('custom_apps', jsonEncode(apps));
+    notifyListeners();
+  }
+
+  Future<void> toggleScreenshotMode() async {
+    _isScreenshotMode = !_isScreenshotMode;
+    await DatabaseHelper.saveSetting('mode_screenshot', _isScreenshotMode.toString());
+    notifyListeners();
+  }
+
+  Future<void> toggleBlockingMode() async {
+    _isBlockingMode = !_isBlockingMode;
+    await DatabaseHelper.saveSetting('mode_blocking', _isBlockingMode.toString());
+    if (!_isBlockingMode) {
+      _resetViolations();
+    }
     notifyListeners();
   }
 
@@ -370,10 +397,26 @@ class AppState extends ChangeNotifier {
     bool allowRoblox = _scheduleRoblox[key] ?? false;
     bool allowYouTube = _scheduleBrowser[key] ?? false;
 
+    // Screenshot logic (5-min interval)
+    if (_isScreenshotMode && (allowRoblox || allowYouTube)) {
+      _macOSCaptureCounter++;
+      if (_macOSCaptureCounter >= 300) { // 300 seconds = 5 minutes
+        _macOSCaptureCounter = 0;
+        _checkAndSendTelegramAlert(t('msg_scheduled_monitoring'));
+      }
+    } else {
+      _macOSCaptureCounter = 0;
+    }
+
     // Default legacy logic if schedule is empty
     if (_scheduleRoblox.isEmpty && _scheduleBrowser.isEmpty) {
       allowRoblox = false; // Block Roblox by default to prevent bypass
       allowYouTube = true; // Allow general YouTube
+    }
+
+    if (!_isBlockingMode) {
+       _resetViolations();
+       return;
     }
 
     // Violation logic for Roblox & Custom Apps

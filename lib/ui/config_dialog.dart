@@ -213,6 +213,19 @@ class _ConfigDialogState extends State<ConfigDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          SwitchListTile(
+            title: Text(context.watch<AppState>().t('mode_screenshot')),
+            value: context.watch<AppState>().isScreenshotMode,
+            onChanged: (val) => context.read<AppState>().toggleScreenshotMode(),
+          ),
+          SwitchListTile(
+            title: Text(context.watch<AppState>().t('mode_blocking')),
+            value: context.watch<AppState>().isBlockingMode,
+            onChanged: (val) => context.read<AppState>().toggleBlockingMode(),
+          ),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 16),
           EditableList(
             title: context.watch<AppState>().t('keywords_title'),
             subtitle: context.watch<AppState>().t('keywords_subtitle'),

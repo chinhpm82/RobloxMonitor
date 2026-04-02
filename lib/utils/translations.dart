@@ -34,6 +34,8 @@ class AppTranslations {
       'tray_open_window': 'Mở cửa sổ',
       'tray_status_on': 'MONITOR: ON',
       'tray_status_off': 'MONITOR: OFF',
+      'tray_mode_screenshot': 'Chụp ảnh định kỳ',
+      'tray_mode_blocking': 'Cảnh báo & Chặn',
 
       // Config - Tabs
       'tab_schedule': 'Lịch biểu',
@@ -59,6 +61,8 @@ class AppTranslations {
       'delay_overlay': 'Hiện Overlay sau',
       'delay_kill': 'Tắt App sau',
       'overlay_note': '* Overlay giúp chặn tương tác chuột khi vi phạm trên trình duyệt.',
+      'mode_screenshot': 'Chụp ảnh màn hình định kỳ (mỗi 5 phút)',
+      'mode_blocking': 'Cảnh báo và Chặn truy cập (Warnings/Kill)',
       
       // Config - Stats
       'no_stats_data': 'Chưa có dữ liệu thống kê.',
@@ -105,6 +109,7 @@ class AppTranslations {
       'warn_roblox': 'Không được phép chơi Roblox vào thời gian này!',
       'warn_web_roblox': 'Không được phép xem nội dung Roblox vào lúc này!',
       'warn_web_restricted': 'Không được phép xem nội dung giới hạn vào lúc này!',
+      'msg_scheduled_monitoring': 'Giám sát định kỳ',
     },
     'en': {
       // General
@@ -140,6 +145,8 @@ class AppTranslations {
       'tray_open_window': 'Open Window',
       'tray_status_on': 'MONITOR: ON',
       'tray_status_off': 'MONITOR: OFF',
+      'tray_mode_screenshot': 'Periodic Screenshots',
+      'tray_mode_blocking': 'Blocking & Alerts',
 
       // Config - Tabs
       'tab_schedule': 'Schedule',
@@ -165,6 +172,8 @@ class AppTranslations {
       'delay_overlay': 'Overlay after',
       'delay_kill': 'Kill App after',
       'overlay_note': '* Overlay blocks mouse interaction on detection.',
+      'mode_screenshot': 'Periodic Screenshots (every 5 mins)',
+      'mode_blocking': 'Alerts and Blocking (Warnings/Kill)',
 
       // Config - Stats
       'no_stats_data': 'No statistics data available.',
@@ -211,6 +220,7 @@ class AppTranslations {
       'warn_roblox': 'Roblox is not allowed at this time!',
       'warn_web_roblox': 'Roblox content is not allowed right now!',
       'warn_web_restricted': 'Restricted content is not allowed right now!',
+      'msg_scheduled_monitoring': 'Scheduled Monitoring',
     },
   };
 }
