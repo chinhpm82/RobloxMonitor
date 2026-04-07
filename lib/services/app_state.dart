@@ -14,77 +14,30 @@ enum WindowMode { tray, settings }
 
 class AppState extends ChangeNotifier {
   bool _isMonitorEnabled = true;
-  bool _isRobloxRunning = false;
-  bool _isBrowserRobloxRunning = false;
   
-  String? _currentRobloxTitle; 
-  String? _currentBrowserTitle;
-  
-  bool _wasAppDetected = false;
-  bool _wasBrowserDetected = false;
-  
-  DateTime? _robloxStartTime;
-  DateTime? _browserStartTime;
-
-  int _robloxViolationSeconds = 0;
-  int _browserViolationSeconds = 0;
-
-  bool _showWarning = false;
-  bool _showOverlay = false;
-  String _warningMessage = '';
-
-  // Configurable delays
-  int _warningDelay = Constants.warningDelaySeconds;
-  int _overlayDelay = Constants.overlayDelaySeconds;
-  int _killDelay = Constants.killDelaySeconds;
-
-  // Schedule storage: key: "day_hour" (e.g. "1_18" for Mon 18:00), value: true/false
-  Map<String, bool> _scheduleRoblox = {};
-  Map<String, bool> _scheduleBrowser = {};
-
-  // Custom monitoring lists
-  List<String> _customKeywords = [];
-  List<String> _customApps = [];
-
   Timer? _timer;
   bool _isChecking = false;
   bool _isTransitioning = false;
   WindowMode _windowMode = WindowMode.tray;
 
-  bool _isScreenshotMode = kIsWeb ? false : Platform.isMacOS;
-  bool _isBlockingMode = kIsWeb ? true : !Platform.isMacOS; // Default for Windows is blocking, for macOS is screenshot-only
+  // Unified schedule: key: "day_hour" (e.g. "1_18" for Mon 18:00), value: true/false
+  Map<String, bool> _scheduleCapture = {};
 
-  int _macOSCaptureCounter = 0; // Add this for 5-min timer
+  bool _isScreenshotMode = kIsWeb ? false : Platform.isMacOS;
+  int _macOSCaptureCounter = 0;
 
   bool get isScreenshotMode => _isScreenshotMode;
-  bool get isBlockingMode => _isBlockingMode;
-  
   bool get isTransitioning => _isTransitioning;
-
   bool get isMonitorEnabled => _isMonitorEnabled;
-  bool get showWarning => _showWarning;
-  bool get showOverlay => _showOverlay;
-  String get warningMessage => _warningMessage;
   WindowMode get windowMode => _windowMode;
 
-  int _todayPlayTimeSeconds = 0;
-  int _allowedPlayTimeMinutes = 0;
-
-  Map<String, bool> get scheduleRoblox => _scheduleRoblox;
-  Map<String, bool> get scheduleBrowser => _scheduleBrowser;
-
-  List<String> get customKeywords => _customKeywords;
-  List<String> get customApps => _customApps;
-
-  int get warningDelay => _warningDelay;
-  int get overlayDelay => _overlayDelay;
-  int get killDelay => _killDelay;
+  Map<String, bool> get scheduleCapture => _scheduleCapture;
 
   // Telegram Config
   String _telegramBotToken = '';
   String _telegramChatId = '';
   int _telegramDebounceMinutes = 5;
-  String _telegramMessageTemplate = "Phát hiện nội dung giới hạn: {reason}"; // Legacy fallback
+  String _telegramMessageTemplate = "Báo cáo định kỳ";
 
   // Localization
   String _language = 'vi';
@@ -97,15 +50,13 @@ class AppState extends ChangeNotifier {
   String get telegramMessageTemplate => _telegramMessageTemplate;
 
   AppState() {
-    DatabaseHelper.logSystemEvent("MoniGuard App Started");
+    DatabaseHelper.logSystemEvent("MoniGuard Started");
     _loadSettings();
     _startMonitor();
-    _updateTodayPlayTime();
   }
 
   Future<void> refreshState() async {
     await _loadSettings();
-    await _updateTodayPlayTime();
   }
 
   Future<void> _loadSettings() async {
@@ -114,96 +65,46 @@ class AppState extends ChangeNotifier {
       _isMonitorEnabled = enabled == 'true';
     }
     
-    final allowed = await DatabaseHelper.getSetting('allowed_minutes');
-    if (allowed != null) {
-      _allowedPlayTimeMinutes = int.tryParse(allowed) ?? 0;
-    }
-
-    final schRoblox = await DatabaseHelper.getSetting('schedule_roblox');
-    if (schRoblox != null) {
+    // Migration: Load from schedule_roblox as the new unified schedule
+    final sch = await DatabaseHelper.getSetting('schedule_capture') ?? await DatabaseHelper.getSetting('schedule_roblox');
+    if (sch != null) {
       try {
-        final decoded = Map<String, dynamic>.from(jsonDecode(schRoblox));
-        _scheduleRoblox = decoded.map((k, v) => MapEntry(k, v as bool));
-      } catch (_) {}
-    }
-
-    final schBrowser = await DatabaseHelper.getSetting('schedule_browser');
-    if (schBrowser != null) {
-      try {
-        final decoded = Map<String, dynamic>.from(jsonDecode(schBrowser));
-        _scheduleBrowser = decoded.map((k, v) => MapEntry(k, v as bool));
+        final decoded = Map<String, dynamic>.from(jsonDecode(sch));
+        _scheduleCapture = decoded.map((k, v) => MapEntry(k, v as bool));
       } catch (_) {}
     }
 
     _telegramBotToken = await DatabaseHelper.getSetting('telegram_bot_token') ?? '';
     _telegramChatId = await DatabaseHelper.getSetting('telegram_chat_id') ?? '';
 
-    final keywords = await DatabaseHelper.getSetting('custom_keywords');
-    if (keywords != null) {
-      try {
-        _customKeywords = List<String>.from(jsonDecode(keywords));
-      } catch (_) {}
-    } else {
-      // Default initial keywords
-      _customKeywords = [...Constants.robloxKeywords];
-    }
-
     // Load language
     _language = await DatabaseHelper.getSetting('language') ?? 'vi';
 
-    // Load custom apps
-    final savedApps = await DatabaseHelper.getSetting('custom_apps');
-    if (savedApps != null) {
-      try {
-        _customApps = List<String>.from(jsonDecode(savedApps));
-      } catch (_) {}
-    } else {
-      // Default initial apps
-      _customApps = [Constants.robloxProcessName];
-    }
-
-    // Load delays
-    _warningDelay = int.tryParse(await DatabaseHelper.getSetting('delay_warning') ?? '') ?? Constants.warningDelaySeconds;
-    _overlayDelay = int.tryParse(await DatabaseHelper.getSetting('delay_overlay') ?? '') ?? Constants.overlayDelaySeconds;
-    _killDelay = int.tryParse(await DatabaseHelper.getSetting('delay_kill') ?? '') ?? Constants.killDelaySeconds;
-
     // Load Telegram extra configs
     _telegramDebounceMinutes = int.tryParse(await DatabaseHelper.getSetting('telegram_debounce') ?? '') ?? 5;
-    _telegramMessageTemplate = await DatabaseHelper.getSetting('telegram_template') ?? "Phát hiện nội dung giới hạn: {reason}";
+    _telegramMessageTemplate = await DatabaseHelper.getSetting('telegram_template') ?? "Báo cáo định kỳ";
 
-    _isScreenshotMode = (await DatabaseHelper.getSetting('mode_screenshot') ?? (Platform.isMacOS ? 'true' : 'false')) == 'true';
-    _isBlockingMode = (await DatabaseHelper.getSetting('mode_blocking') ?? (Platform.isMacOS ? 'false' : 'true')) == 'true';
+    _isScreenshotMode = (await DatabaseHelper.getSetting('mode_screenshot') ?? 'true') == 'true';
 
     notifyListeners();
   }
 
   Future<void> saveSettings({
-    required int warningDelay,
-    required int overlayDelay,
-    required int killDelay,
     required int telegramDebounce,
     required String telegramTemplate,
   }) async {
-    _warningDelay = warningDelay;
-    _overlayDelay = overlayDelay;
-    _killDelay = killDelay;
     _telegramDebounceMinutes = telegramDebounce;
     _telegramMessageTemplate = telegramTemplate;
 
-    await DatabaseHelper.saveSetting('delay_warning', warningDelay.toString());
-    await DatabaseHelper.saveSetting('delay_overlay', overlayDelay.toString());
-    await DatabaseHelper.saveSetting('delay_kill', killDelay.toString());
     await DatabaseHelper.saveSetting('telegram_debounce', telegramDebounce.toString());
     await DatabaseHelper.saveSetting('telegram_template', telegramTemplate);
     
     notifyListeners();
   }
 
-  Future<void> saveSchedules(Map<String, bool> roblox, Map<String, bool> browser) async {
-    _scheduleRoblox = roblox;
-    _scheduleBrowser = browser;
-    await DatabaseHelper.saveSetting('schedule_roblox', jsonEncode(roblox));
-    await DatabaseHelper.saveSetting('schedule_browser', jsonEncode(browser));
+  Future<void> saveSchedules(Map<String, bool> captureSchedule) async {
+    _scheduleCapture = captureSchedule;
+    await DatabaseHelper.saveSetting('schedule_capture', jsonEncode(captureSchedule));
     notifyListeners();
   }
 
@@ -215,47 +116,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> saveCustomMonitoring(List<String> keywords, List<String> apps) async {
-    _customKeywords = keywords;
-    _customApps = apps;
-    await DatabaseHelper.saveSetting('custom_keywords', jsonEncode(keywords));
-    await DatabaseHelper.saveSetting('custom_apps', jsonEncode(apps));
-    notifyListeners();
-  }
-
   Future<void> toggleScreenshotMode() async {
     _isScreenshotMode = !_isScreenshotMode;
     await DatabaseHelper.saveSetting('mode_screenshot', _isScreenshotMode.toString());
     notifyListeners();
   }
 
-  Future<void> toggleBlockingMode() async {
-    _isBlockingMode = !_isBlockingMode;
-    await DatabaseHelper.saveSetting('mode_blocking', _isBlockingMode.toString());
-    if (!_isBlockingMode) {
-      _resetViolations();
-    }
-    notifyListeners();
-  }
-
-  Future<void> _updateTodayPlayTime() async {
-    final logs = await DatabaseHelper.getLogs();
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    
-    int total = 0;
-    for (var log in logs) {
-      final start = DateTime.parse(log['start_time']);
-      if (start.isAfter(today)) {
-        total += log['duration_seconds'] as int;
-      }
-    }
-    _todayPlayTimeSeconds = total;
-  }
-
   Future<bool> toggleMonitor(String? password) async {
     if (_isMonitorEnabled) {
-      // Trying to turn OFF
       if (password == null || !(await verifyPassword(password))) {
         return false;
       }
@@ -263,18 +131,8 @@ class AppState extends ChangeNotifier {
     
     _isMonitorEnabled = !_isMonitorEnabled;
     DatabaseHelper.saveSetting('monitor_enabled', _isMonitorEnabled.toString());
-    if (!_isMonitorEnabled) {
-      _resetViolations();
-    }
     notifyListeners();
     return true;
-  }
-
-  void _resetViolations() {
-    _robloxViolationSeconds = 0;
-    _browserViolationSeconds = 0;
-    _showWarning = false;
-    _showOverlay = false;
   }
 
   void _startMonitor() {
@@ -314,91 +172,29 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  int _heartbeatCount = 0;
-
   void _checkStatus() {
-    if (_isChecking) return;
+    if (_isChecking || !_isMonitorEnabled) return;
     _isChecking = true;
     
     try {
       _performCheck();
     } catch (e, stack) {
-      DatabaseHelper.logSystemEvent("Critical Monitoring Error: $e\n$stack", level: 'ERROR');
+      DatabaseHelper.logSystemEvent("Monitoring Error: $e", level: 'ERROR');
     } finally {
       _isChecking = false;
     }
   }
 
   void _performCheck() {
-    // 1. Check Desktop Apps
-    bool robloxNow = NativeService.isProcessRunning(Constants.robloxProcessName);
-    bool customAppNow = false;
-    String? foundCustomAppName;
-    
-    for (final app in _customApps) {
-      if (NativeService.isProcessRunning(app)) {
-        customAppNow = true;
-        foundCustomAppName = app;
-        break;
-      }
-    }
-
-    // 2. Check Browser Keywords
-    String? browserMatch;
-    bool isEnabled = _isMonitorEnabled;
-    
-    if (isEnabled && _customKeywords.isNotEmpty) {
-       final match = NativeService.getBrowserMatch(_customKeywords);
-       if (match != null) {
-         browserMatch = match;
-       }
-    }
-
-    bool hasBrowserViolation = browserMatch != null;
-    
-    // Check if it's specifically Roblox for separate logging/alerts
-    bool isRobloxWeb = false;
-    if (browserMatch != null) {
-      final lowerMatch = browserMatch.toLowerCase();
-      isRobloxWeb = lowerMatch.contains('roblox') || lowerMatch.contains('blox');
-    }
-
-    // Logging play time
-    _handleLogging(robloxNow || customAppNow, isRobloxWeb, hasBrowserViolation && !isRobloxWeb);
-    
-    // Check Telegram Notification
-    if (robloxNow && !_wasAppDetected) {
-       DatabaseHelper.logSystemEvent("Detected Roblox App");
-       _checkAndSendTelegramAlert(t('msg_roblox_app'));
-    } else if (customAppNow && !_wasAppDetected) {
-       DatabaseHelper.logSystemEvent("Detected Custom App: $foundCustomAppName");
-       _checkAndSendTelegramAlert(t('msg_restricted_app', args: [foundCustomAppName ?? '']));
-    } else if (isRobloxWeb && !_wasBrowserDetected) {
-       DatabaseHelper.logSystemEvent("Detected Roblox Web: $_currentRobloxTitle");
-       _checkAndSendTelegramAlert(t('msg_roblox_web', args: [_currentRobloxTitle ?? '']));
-    } else if (hasBrowserViolation && !_wasBrowserDetected) {
-       DatabaseHelper.logSystemEvent("Detected Restricted Web: $browserMatch");
-       _checkAndSendTelegramAlert(t('msg_restricted_web', args: [browserMatch ?? '']));
-    }
-
-    _wasAppDetected = robloxNow || customAppNow;
-    _wasBrowserDetected = hasBrowserViolation;
-
-    if (!_isMonitorEnabled) {
-       _resetViolations();
-       return;
-    }
-
     final now = DateTime.now();
-    final weekday = now.weekday; // 1 = Mon, 7 = Sun
+    final weekday = now.weekday;
     final hour = now.hour;
     final key = "${weekday}_${hour}";
 
-    bool allowRoblox = _scheduleRoblox[key] ?? false;
-    bool allowYouTube = _scheduleBrowser[key] ?? false;
+    bool isScheduled = _scheduleCapture[key] ?? false;
 
     // Screenshot logic (5-min interval)
-    if (_isScreenshotMode && (allowRoblox || allowYouTube)) {
+    if (_isScreenshotMode && isScheduled) {
       _macOSCaptureCounter++;
       if (_macOSCaptureCounter >= 300) { // 300 seconds = 5 minutes
         _macOSCaptureCounter = 0;
@@ -406,119 +202,6 @@ class AppState extends ChangeNotifier {
       }
     } else {
       _macOSCaptureCounter = 0;
-    }
-
-    // Default legacy logic if schedule is empty
-    if (_scheduleRoblox.isEmpty && _scheduleBrowser.isEmpty) {
-      allowRoblox = false; // Block Roblox by default to prevent bypass
-      allowYouTube = true; // Allow general YouTube
-    }
-
-    if (!_isBlockingMode) {
-       _resetViolations();
-       return;
-    }
-
-    // Violation logic for Roblox & Custom Apps
-    bool appViolation = (robloxNow && !allowRoblox) || (customAppNow && !allowRoblox);
-    
-    if (appViolation) {
-      _robloxViolationSeconds++;
-      if (_robloxViolationSeconds == _warningDelay) {
-        _showWarning = true;
-        _warningMessage = customAppNow 
-           ? t('warn_app', args: [foundCustomAppName ?? '']) 
-           : t('warn_roblox');
-        notifyListeners();
-      } else if (_robloxViolationSeconds >= _killDelay) {
-        if (robloxNow) NativeService.killProcess(Constants.robloxProcessName);
-        if (customAppNow && foundCustomAppName != null) NativeService.killProcess(foundCustomAppName);
-        _robloxViolationSeconds = 0;
-        _showWarning = false;
-        notifyListeners();
-      }
-    } else {
-      _robloxViolationSeconds = 0;
-    }
-
-    // Violation logic for Browser
-    // Simplified: browser violation is any keyword match when not allowed
-    bool isAllowedInBrowser = true;
-    if (isRobloxWeb) {
-      isAllowedInBrowser = allowRoblox;
-    } else {
-      isAllowedInBrowser = allowYouTube;
-    }
-
-    bool browserViolation = hasBrowserViolation && !isAllowedInBrowser;
-    
-    if (browserViolation) {
-      _browserViolationSeconds++;
-      if (_browserViolationSeconds == _warningDelay) {
-        _showWarning = true;
-        _warningMessage = isRobloxWeb 
-            ? t('warn_web_roblox') 
-            : t('warn_web_restricted');
-        notifyListeners();
-      } else if (_browserViolationSeconds == _overlayDelay) {
-        _showOverlay = true;
-        notifyListeners();
-      } else if (_browserViolationSeconds >= _killDelay) {
-        NativeService.killBrowsers(_customKeywords);
-        _browserViolationSeconds = 0;
-        _showWarning = false;
-        _showOverlay = false;
-        notifyListeners();
-      }
-    } else {
-      _browserViolationSeconds = 0;
-      if (!appViolation) {
-        _showWarning = false;
-      }
-      _showOverlay = false;
-    }
-
-    if (!appViolation && !browserViolation) {
-      _showWarning = false;
-      _showOverlay = false;
-      notifyListeners();
-    }
-  }
-
-  void _handleLogging(bool robloxNow, bool browserRoblox, bool browserSite) {
-    // Preserve detection for logging details
-    if (browserRoblox) _currentRobloxTitle ??= 'Start Detected';
-    if (browserSite && !browserRoblox) _currentBrowserTitle ??= 'Start Detected';
-
-    if (robloxNow) {
-      _robloxStartTime ??= DateTime.now();
-      _todayPlayTimeSeconds++;
-    } else {
-      if (_robloxStartTime != null) {
-        final duration = DateTime.now().difference(_robloxStartTime!).inSeconds;
-        if (duration > 0) {
-          DatabaseHelper.logPlay(_robloxStartTime!, DateTime.now(), duration, 'Roblox App');
-          _updateTodayPlayTime();
-        }
-        _robloxStartTime = null;
-      }
-    }
-
-    if (browserRoblox || browserSite) {
-      _browserStartTime ??= DateTime.now();
-      _todayPlayTimeSeconds++;
-    } else {
-      if (_browserStartTime != null) {
-        final duration = DateTime.now().difference(_browserStartTime!).inSeconds;
-        if (duration > 0) {
-          String detail = browserRoblox ? (_currentRobloxTitle ?? 'Roblox Web') : (_currentBrowserTitle ?? 'YouTube');
-          DatabaseHelper.logPlay(_browserStartTime!, DateTime.now(), duration, 'Trình duyệt: $detail');
-          _updateTodayPlayTime();
-        }
-        _browserStartTime = null;
-        _currentRobloxTitle = null;
-        _currentBrowserTitle = null;
-      }
     }
   }
 
@@ -535,7 +218,6 @@ class AppState extends ChangeNotifier {
       }
     }
     
-    DatabaseHelper.logSystemEvent("Telegram: Triggering alert for: $reason");
     _lastTelegramSentTime = now;
     
     final message = _telegramMessageTemplate
@@ -543,56 +225,28 @@ class AppState extends ChangeNotifier {
         .replaceAll('{time}', "${now.hour}:${now.minute.toString().padLeft(2, '0')}");
 
     try {
-      // 1. Try Capture & Send
-      final success = await TelegramService.captureAndSend(
+      await TelegramService.captureAndSend(
         botToken: _telegramBotToken,
         chatId: _telegramChatId,
         caption: message,
       );
-      
-      if (success) {
-        DatabaseHelper.logSystemEvent("Telegram: Image alert sent");
-      } else {
-        DatabaseHelper.logSystemEvent("Telegram: Capture failed, trying text-only fallback...", level: 'WARNING');
-        // 2. Fallback to Text Only
-        final textSuccess = await TelegramService.sendMessage(
-          botToken: _telegramBotToken,
-          chatId: _telegramChatId,
-          message: message,
-        );
-        if (textSuccess) {
-          DatabaseHelper.logSystemEvent("Telegram: Text fallback sent");
-        } else {
-          DatabaseHelper.logSystemEvent("Telegram: All send attempts failed", level: 'ERROR');
-        }
-      }
     } catch (e) {
       DatabaseHelper.logSystemEvent("Telegram Error: $e", level: 'ERROR');
     }
   }
 
   Future<void> setWindowMode(WindowMode mode) async {
-    debugPrint("setWindowMode called with mode: $mode");
-    if (_isTransitioning) {
-      debugPrint("Already transitioning, returning");
-      return;
-    }
+    if (_isTransitioning) return;
     _isTransitioning = true;
     
     try {
       _windowMode = mode;
       notifyListeners();
-      
       await Future.delayed(const Duration(milliseconds: 50));
-      
       await windowManager.show();
       await windowManager.focus();
-      
-      debugPrint("Window mode changed to: $mode");
-      
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint("Window Mode Error: $e");
-      debugPrint("Stack trace: $stackTrace");
     } finally {
       _isTransitioning = false;
     }

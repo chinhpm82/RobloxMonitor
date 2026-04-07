@@ -101,7 +101,10 @@ class SystemTrayManager {
         label: appState.t('tray_open_window'),
         onClicked: (menuItem) => windowManager.show(),
       ),
-      // MenuItemLabel(label: 'Thoát', onClicked: (menuItem) => exit(0)), // User says no exit menu
+      MenuItemLabel(
+        label: appState.t('tray_quit'),
+        onClicked: (menuItem) => exit(0),
+      ),
     ]);
     await _systemTray.setContextMenu(_menu);
   }

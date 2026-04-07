@@ -7,7 +7,6 @@ import 'package:roblox_monitor/services/database_helper.dart';
 import 'package:roblox_monitor/services/system_tray_manager.dart';
 import 'package:roblox_monitor/ui/config_dialog.dart';
 import 'package:roblox_monitor/ui/home_page.dart';
-import 'package:roblox_monitor/ui/overlay_widget.dart';
 import 'package:roblox_monitor/ui/tray_popup.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -133,9 +132,8 @@ class _MainWrapperState extends State<MainWrapper> with WindowListener {
 
   Future<void> _initWindow() async {
     // Use a size that can fit both tray popup and config UI
-    // This avoids having to resize which causes native crashes
     await windowManager.setSize(const Size(600, 700));
-    await windowManager.setPreventClose(true);
+    await windowManager.setPreventClose(true); // Prevent window from closing
     await windowManager.setResizable(true);
     await windowManager.setTitleBarStyle(TitleBarStyle.normal);
     await windowManager.center();
@@ -151,8 +149,7 @@ class _MainWrapperState extends State<MainWrapper> with WindowListener {
 
   @override
   void onWindowClose() async {
-    // On macOS: Quit from Dock menu just hides to tray. 
-    // The LaunchAgent will restart if the process is killed.
+    // Hide window instead of quitting
     await windowManager.hide();
   }
 
@@ -168,69 +165,11 @@ class _MainWrapperState extends State<MainWrapper> with WindowListener {
 
   @override
   Widget build(BuildContext context) {
-    final showOverlay = context.select<AppState, bool>((s) => s.showOverlay);
     final windowMode = context.select<AppState, WindowMode>((s) => s.windowMode);
     
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: Stack(
-          children: [
-            if (windowMode == WindowMode.tray) ...[
-              const TrayPopup(),
-            ] else ...[
-              const ConfigDialog(),
-            ],
-            if (showOverlay) const FullScreenOverlay(),
-            const WarningBanner(),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class WarningBanner extends StatelessWidget {
-  const WarningBanner({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final showWarning = context.select<AppState, bool>((s) => s.showWarning);
-    final message = context.select<AppState, String>((s) => s.warningMessage);
-
-    if (!showWarning) return const SizedBox.shrink();
-
-    // If warning is shown, ensure window is visible
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-       await windowManager.show();
-       await windowManager.setAlwaysOnTop(true);
-    });
-
-    return Positioned(
-      top: 50,
-      left: 20,
-      right: 20,
-      child: Material(
-        elevation: 10,
-        borderRadius: BorderRadius.circular(12),
-        color: Colors.redAccent,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              const Icon(Icons.warning, color: Colors.white, size: 30),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: windowMode == WindowMode.tray ? const TrayPopup() : const ConfigDialog(),
     );
   }
 }
