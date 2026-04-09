@@ -96,7 +96,9 @@ class AppTranslations {
       'warn_roblox': 'Không được phép chơi Roblox vào thời gian này!',
       'warn_web_roblox': 'Không được phép xem nội dung Roblox vào lúc này!',
       'warn_web_restricted': 'Không được phép xem nội dung giới hạn vào lúc này!',
-      'msg_scheduled_monitoring': 'Giám sát định kỳ',
+      'msg_scheduled_monitoring': 'Báo cáo định kỳ',
+      'screenshot_interval': 'Khoảng thời gian chụp (phút)',
+      'msg_screen_locked': 'Màn hình đang khóa - Bỏ qua chụp ảnh',
     },
     'en': {
       // General
@@ -209,6 +211,8 @@ class AppTranslations {
       'warn_web_roblox': 'Roblox content is not allowed right now!',
       'warn_web_restricted': 'Restricted content is not allowed right now!',
       'msg_scheduled_monitoring': 'Scheduled Monitoring',
+      'screenshot_interval': 'Screenshot Interval (minutes)',
+      'msg_screen_locked': 'Screen is locked - Skipping screenshot',
     },
   };
 }

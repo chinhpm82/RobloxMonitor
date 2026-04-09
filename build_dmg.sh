@@ -5,7 +5,7 @@ set -e
 
 APP_NAME="MoniGuard"
 DMG_NAME="MoniGuard_Installer"
-VERSION="1.2.0"
+VERSION="1.2.1"
 
 # Try to find flutter
 FLUTTER_BIN=$(which flutter || echo "/Users/chinhpmgmail.com/flutter/bin/flutter")

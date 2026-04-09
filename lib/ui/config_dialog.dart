@@ -23,6 +23,7 @@ class _ConfigDialogState extends State<ConfigDialog> {
   final TextEditingController _chatIdController = TextEditingController();
   final TextEditingController _telegramFrequencyController = TextEditingController();
   final TextEditingController _telegramTemplateController = TextEditingController();
+  final TextEditingController _screenshotIntervalController = TextEditingController();
 
   late Map<String, bool> _tempSchCapture;
   bool _initialized = false;
@@ -50,6 +51,7 @@ class _ConfigDialogState extends State<ConfigDialog> {
     _chatIdController.text = appState.telegramChatId;
     _telegramFrequencyController.text = appState.telegramDebounceMinutes.toString();
     _telegramTemplateController.text = appState.telegramMessageTemplate;
+    _screenshotIntervalController.text = appState.screenshotIntervalMinutes.toString();
   }
 
   @override
@@ -303,6 +305,24 @@ class _ConfigDialogState extends State<ConfigDialog> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _screenshotIntervalController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    border: const OutlineInputBorder(),
+                    labelText: context.watch<AppState>().t('screenshot_interval'),
+                    suffixText: 'm',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(child: SizedBox()),
+            ],
+          ),
           const SizedBox(height: 8),
           Text(context.watch<AppState>().t('template_note'), style: const TextStyle(fontSize: 12, color: Colors.white54)),
           const SizedBox(height: 24),
@@ -450,6 +470,7 @@ class _ConfigDialogState extends State<ConfigDialog> {
     await appState.saveSettings(
       telegramDebounce: int.tryParse(_telegramFrequencyController.text) ?? 5,
       telegramTemplate: _telegramTemplateController.text,
+      screenshotIntervalMinutes: int.tryParse(_screenshotIntervalController.text) ?? 5,
     );
 
     // Save unified schedule

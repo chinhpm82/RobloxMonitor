@@ -25,6 +25,7 @@ class AppState extends ChangeNotifier {
 
   bool _isScreenshotMode = kIsWeb ? false : Platform.isMacOS;
   int _macOSCaptureCounter = 0;
+  int _screenshotIntervalSeconds = 300; // Default 5 minutes
 
   bool get isScreenshotMode => _isScreenshotMode;
   bool get isTransitioning => _isTransitioning;
@@ -47,6 +48,7 @@ class AppState extends ChangeNotifier {
   String get telegramBotToken => _telegramBotToken;
   String get telegramChatId => _telegramChatId;
   int get telegramDebounceMinutes => _telegramDebounceMinutes;
+  int get screenshotIntervalMinutes => _screenshotIntervalSeconds ~/ 60;
   String get telegramMessageTemplate => _telegramMessageTemplate;
 
   AppState() {
@@ -85,6 +87,7 @@ class AppState extends ChangeNotifier {
     _telegramMessageTemplate = await DatabaseHelper.getSetting('telegram_template') ?? "Báo cáo định kỳ";
 
     _isScreenshotMode = (await DatabaseHelper.getSetting('mode_screenshot') ?? 'true') == 'true';
+    _screenshotIntervalSeconds = int.tryParse(await DatabaseHelper.getSetting('screenshot_interval') ?? '') ?? 300;
 
     notifyListeners();
   }
@@ -92,12 +95,15 @@ class AppState extends ChangeNotifier {
   Future<void> saveSettings({
     required int telegramDebounce,
     required String telegramTemplate,
+    required int screenshotIntervalMinutes,
   }) async {
     _telegramDebounceMinutes = telegramDebounce;
     _telegramMessageTemplate = telegramTemplate;
+    _screenshotIntervalSeconds = screenshotIntervalMinutes * 60;
 
     await DatabaseHelper.saveSetting('telegram_debounce', telegramDebounce.toString());
     await DatabaseHelper.saveSetting('telegram_template', telegramTemplate);
+    await DatabaseHelper.saveSetting('screenshot_interval', _screenshotIntervalSeconds.toString());
     
     notifyListeners();
   }
@@ -193,19 +199,29 @@ class AppState extends ChangeNotifier {
 
     bool isScheduled = _scheduleCapture[key] ?? false;
 
-    // Screenshot logic (5-min interval)
+    // Screenshot logic (adjustable interval)
     if (_isScreenshotMode && isScheduled) {
       _macOSCaptureCounter++;
-      if (_macOSCaptureCounter >= 300) { // 300 seconds = 5 minutes
+      if (_macOSCaptureCounter >= _screenshotIntervalSeconds) {
         _macOSCaptureCounter = 0;
-        _checkAndSendTelegramAlert(t('msg_scheduled_monitoring'));
+        _performScreenshotAction();
       }
     } else {
       _macOSCaptureCounter = 0;
     }
   }
 
-  Future<void> _checkAndSendTelegramAlert(String reason) async {
+  Future<void> _performScreenshotAction() async {
+     // Check for screen lock
+    if (NativeService.isScreenLocked()) {
+      debugPrint("Screen is locked, skipping screenshot");
+      await _checkAndSendTelegramAlert(t('msg_screen_locked'), isLocked: true);
+    } else {
+      await _checkAndSendTelegramAlert(t('msg_scheduled_monitoring'));
+    }
+  }
+
+  Future<void> _checkAndSendTelegramAlert(String reason, {bool isLocked = false}) async {
     if (_telegramBotToken.isEmpty || _telegramChatId.isEmpty) {
         return;
     }
@@ -225,11 +241,19 @@ class AppState extends ChangeNotifier {
         .replaceAll('{time}', "${now.hour}:${now.minute.toString().padLeft(2, '0')}");
 
     try {
-      await TelegramService.captureAndSend(
-        botToken: _telegramBotToken,
-        chatId: _telegramChatId,
-        caption: message,
-      );
+      if (isLocked) {
+        await TelegramService.sendMessage(
+          botToken: _telegramBotToken,
+          chatId: _telegramChatId,
+          message: message,
+        );
+      } else {
+        await TelegramService.captureAndSend(
+          botToken: _telegramBotToken,
+          chatId: _telegramChatId,
+          caption: message,
+        );
+      }
     } catch (e) {
       DatabaseHelper.logSystemEvent("Telegram Error: $e", level: 'ERROR');
     }

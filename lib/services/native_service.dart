@@ -72,4 +72,17 @@ class NativeService {
     }
     return false;
   }
+
+  static bool isScreenLocked() {
+    if (Platform.isMacOS) {
+      try {
+        final result = Process.runSync('lsappinfo', ['info', '-only', 'Status', 'loginwindow']);
+        return result.stdout.toString().contains('Frontmost');
+      } catch (e) {
+        debugPrint("MacOS Screen Lock Check Error: $e");
+        return false;
+      }
+    }
+    return false;
+  }
 }
