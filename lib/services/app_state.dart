@@ -37,7 +37,6 @@ class AppState extends ChangeNotifier {
   // Telegram Config
   String _telegramBotToken = '';
   String _telegramChatId = '';
-  int _telegramDebounceMinutes = 5;
   String _telegramMessageTemplate = "Báo cáo định kỳ";
 
   // Localization
@@ -47,7 +46,6 @@ class AppState extends ChangeNotifier {
 
   String get telegramBotToken => _telegramBotToken;
   String get telegramChatId => _telegramChatId;
-  int get telegramDebounceMinutes => _telegramDebounceMinutes;
   int get screenshotIntervalMinutes => _screenshotIntervalSeconds ~/ 60;
   String get telegramMessageTemplate => _telegramMessageTemplate;
 
@@ -83,7 +81,6 @@ class AppState extends ChangeNotifier {
     _language = await DatabaseHelper.getSetting('language') ?? 'vi';
 
     // Load Telegram extra configs
-    _telegramDebounceMinutes = int.tryParse(await DatabaseHelper.getSetting('telegram_debounce') ?? '') ?? 5;
     _telegramMessageTemplate = await DatabaseHelper.getSetting('telegram_template') ?? "Báo cáo định kỳ";
 
     _isScreenshotMode = (await DatabaseHelper.getSetting('mode_screenshot') ?? 'true') == 'true';
@@ -93,15 +90,12 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> saveSettings({
-    required int telegramDebounce,
     required String telegramTemplate,
     required int screenshotIntervalMinutes,
   }) async {
-    _telegramDebounceMinutes = telegramDebounce;
     _telegramMessageTemplate = telegramTemplate;
     _screenshotIntervalSeconds = screenshotIntervalMinutes * 60;
 
-    await DatabaseHelper.saveSetting('telegram_debounce', telegramDebounce.toString());
     await DatabaseHelper.saveSetting('telegram_template', telegramTemplate);
     await DatabaseHelper.saveSetting('screenshot_interval', _screenshotIntervalSeconds.toString());
     
@@ -215,6 +209,7 @@ class AppState extends ChangeNotifier {
      // Check for screen lock
     if (NativeService.isScreenLocked()) {
       debugPrint("Screen is locked, skipping screenshot");
+      DatabaseHelper.logSystemEvent("Màn hình đang khóa - Bỏ qua chụp ảnh");
       await _checkAndSendTelegramAlert(t('msg_screen_locked'), isLocked: true);
     } else {
       await _checkAndSendTelegramAlert(t('msg_scheduled_monitoring'));
@@ -227,13 +222,6 @@ class AppState extends ChangeNotifier {
     }
     
     final now = DateTime.now();
-    if (_lastTelegramSentTime != null) {
-      final diff = now.difference(_lastTelegramSentTime!).inMinutes;
-      if (diff < _telegramDebounceMinutes) {
-          return;
-      }
-    }
-    
     _lastTelegramSentTime = now;
     
     final message = _telegramMessageTemplate

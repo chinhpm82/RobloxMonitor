@@ -139,7 +139,10 @@ class TelegramService {
       DatabaseHelper.logSystemEvent("macOS: screencapture exit=${result.exitCode} stdout='${result.stdout}' stderr='${result.stderr}'");
       
       if (result.exitCode != 0) {
-        DatabaseHelper.logSystemEvent("macOS: screencapture failed (code ${result.exitCode}) Stderr: ${result.stderr}", level: 'ERROR');
+        DatabaseHelper.logSystemEvent("macOS: screencapture failed (code ${result.exitCode})", level: 'ERROR');
+        if (result.exitCode == 1) {
+          DatabaseHelper.logSystemEvent("👉 Hãy kiểm tra: System Settings > Privacy & Security > Screen Recording và đảm bảo MoniGuard được bật.", level: 'WARNING');
+        }
         return false;
       }
       

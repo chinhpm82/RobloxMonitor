@@ -76,8 +76,8 @@ class NativeService {
   static bool isScreenLocked() {
     if (Platform.isMacOS) {
       try {
-        final result = Process.runSync('lsappinfo', ['info', '-only', 'Status', 'loginwindow']);
-        return result.stdout.toString().contains('Frontmost');
+        final result = Process.runSync('lsappinfo', ['front']);
+        return result.stdout.toString().contains('loginwindow');
       } catch (e) {
         debugPrint("MacOS Screen Lock Check Error: $e");
         return false;

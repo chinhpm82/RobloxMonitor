@@ -40,7 +40,7 @@ class AppTranslations {
 
       // Config - Tabs
       'tab_schedule': 'Lịch báo cáo',
-      'tab_stats': 'Thống kê chụp ảnh',
+      'tab_activity_logs': 'Nhật ký hoạt động',
       'tab_notification': 'Cấu hình Telegram',
       'tab_account': 'Tài khoản & Ngôn ngữ',
       'tab_general': 'Tổng quan',
@@ -59,9 +59,8 @@ class AppTranslations {
       'tele_desc': 'Ảnh chụp màn hình sẽ được gửi về Telegram này.',
       'bot_token': 'Bot Token',
       'chat_id': 'Chat ID',
-      'debounce': 'Giãn cách tối thiểu (phút)',
-      'msg_template': 'Tiêu đề tin nhắn',
-      'template_hint': '{reason} tại {time}',
+      'msg_template': 'Mẫu tin nhắn',
+      'template_hint': 'Ví dụ: {reason} vào lúc {time}',
       'template_note': 'Mặc định: {reason} = "Báo cáo định kỳ", {time} = mốc giờ',
       'send_test': 'Kiểm tra kết nối Telegram',
       'test_sending': 'Đang gửi ảnh test...',
@@ -80,7 +79,6 @@ class AppTranslations {
       'new_pass': 'Mật khẩu mới',
       'account_note': 'Lưu ý: Các khung giờ ĐƯỢC TÍCH sẽ thực hiện chụp ảnh màn hình và gửi về Telegram mỗi 5 phút.',
       'language': 'Ngôn ngữ hiển thị',
-      'tab_system_logs': 'Nhật ký lỗi',
       'no_system_logs': 'Hệ thống hoạt động bình thường.',
       
       // Overlay
@@ -140,10 +138,9 @@ class AppTranslations {
 
       // Config - Tabs
       'tab_schedule': 'Schedule',
-      'tab_monitoring': 'Monitoring',
-      'tab_stats': 'Stats',
-      'tab_notification': 'Notify',
-      'tab_account': 'Account',
+      'tab_activity_logs': 'Activity Logs',
+      'tab_notification': 'Telegram Config',
+      'tab_account': 'Account & Language',
       'tab_general': 'General',
 
       // Config - Schedule
@@ -173,9 +170,8 @@ class AppTranslations {
       'tele_desc': 'Receive notifications when violation detected.',
       'bot_token': 'Bot Token',
       'chat_id': 'Chat ID',
-      'debounce': 'Box Interval (min)',
       'msg_template': 'Message Template',
-      'template_hint': '{reason} at {time}',
+      'template_hint': 'Ex: {reason} at {time}',
       'template_note': 'Hint: {reason} = Reason, {time} = Time',
       'send_test': 'Send Test Message (Save first)',
       'test_sending': 'Sending test message...',
@@ -194,7 +190,6 @@ class AppTranslations {
       'new_pass': 'New Password',
       'account_note': 'Note: Selected slots are ALLOWED. Unchecked slots will be BLOCKED when Monitor is ON.',
       'language': 'Ngôn ngữ (Language)',
-      'tab_system_logs': 'System Logs',
       'no_system_logs': 'No system logs available',
 
       // Overlay

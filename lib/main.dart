@@ -10,9 +10,31 @@ import 'package:roblox_monitor/ui/home_page.dart';
 import 'package:roblox_monitor/ui/tray_popup.dart';
 import 'package:window_manager/window_manager.dart';
 
-void main() async {
+void main(List<String> args) async {
+  // Determine if we should start silently (background mode)
+  final bool isSilent = args.contains('--silent');
+  final bool forceOpen = args.contains('open') || args.isEmpty;
+
+  // 1. Strict single instance check (BEFORE starting Flutter engine)
+  try {
+    final socket = await Socket.connect(InternetAddress.loopbackIPv4, 54321, timeout: const Duration(milliseconds: 300));
+    
+    // If we're not starting silently, signal the existing instance to open
+    if (forceOpen) {
+      socket.write('open');
+      await socket.flush();
+    }
+    
+    socket.destroy();
+    // Exit immediately to prevent process duplication
+    exit(0); 
+  } catch (_) {
+    // No instance running, continue to start this instance as the primary
+  }
+
   try {
     WidgetsFlutterBinding.ensureInitialized();
+    
     if (Platform.isWindows) {
       Directory.current = p.dirname(Platform.resolvedExecutable);
     }
@@ -20,15 +42,32 @@ void main() async {
 
     final appState = AppState();
     
+    // If this primary instance is launched manually (forceOpen), show settings
+    if (forceOpen && !isSilent) {
+      await appState.setWindowMode(WindowMode.settings);
+    }
+    
     // Install LaunchAgent on macOS for auto-start
     if (Platform.isMacOS) {
       _installLaunchAgentIfNeeded();
     }
     
-    // Initialize tray asynchronously
-    Future.delayed(const Duration(milliseconds: 100), () {
-      SystemTrayManager(appState).init().catchError((e) => debugPrint("Tray Error: $e"));
-    });
+    // 2. Start IPC server to listen for commands
+    try {
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 54321);
+      server.listen((client) {
+        client.listen((data) async {
+          final msg = String.fromCharCodes(data).trim();
+          if (msg == 'open') {
+            await appState.setWindowMode(WindowMode.settings);
+            await windowManager.show();
+            await windowManager.focus();
+          }
+        });
+      });
+    } catch (e) {
+      debugPrint("ServerSocket Bind Error: $e");
+    }
 
     runApp(
       ChangeNotifierProvider.value(
@@ -53,15 +92,10 @@ void _installLaunchAgentIfNeeded() {
 
     final plistPath = '$home/Library/LaunchAgents/com.chinhpm.moniguard.plist';
     final executablePath = Platform.resolvedExecutable;
-    // MoniGuard.app executable is inside the .app bundle
+    
+    // Use the absolute path to the binary inside the app bundle
     // e.g. /Applications/MoniGuard.app/Contents/MacOS/MoniGuard
-    // We need the .app path for launch
-    String appPath = executablePath;
-    final appBundleIndex = executablePath.indexOf('.app/');
-    if (appBundleIndex != -1) {
-      appPath = executablePath.substring(0, appBundleIndex + 4); // up to and including .app
-    }
-
+    
     final plistContent = '''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -70,16 +104,13 @@ void _installLaunchAgentIfNeeded() {
     <string>com.chinhpm.moniguard</string>
     <key>ProgramArguments</key>
     <array>
-        <string>open</string>
-        <string>-a</string>
-        <string>$appPath</string>
+        <string>$executablePath</string>
+        <string>--silent</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <false/>
-    <key>StartInterval</key>
-    <integer>0</integer>
 </dict>
 </plist>''';
 
@@ -90,7 +121,7 @@ void _installLaunchAgentIfNeeded() {
       // Load/reload the agent
       Process.run('launchctl', ['unload', plistPath]);
       Process.run('launchctl', ['load', '-w', plistPath]);
-      DatabaseHelper.logSystemEvent("LaunchAgent installed: $plistPath");
+      DatabaseHelper.logSystemEvent("LaunchAgent installed (silent mode): $plistPath");
     }
   } catch (e) {
     DatabaseHelper.logSystemEvent("LaunchAgent install error: $e", level: 'WARNING');
@@ -131,14 +162,21 @@ class _MainWrapperState extends State<MainWrapper> with WindowListener {
   }
 
   Future<void> _initWindow() async {
-    // Use a size that can fit both tray popup and config UI
+    // Use a size that can fit config UI
     await windowManager.setSize(const Size(600, 700));
     await windowManager.setPreventClose(true); // Prevent window from closing
     await windowManager.setResizable(true);
     await windowManager.setTitleBarStyle(TitleBarStyle.normal);
     await windowManager.center();
-    // Always show on startup so user can interact
-    await windowManager.show();
+    
+    // Show window if in settings mode, otherwise hide (agent mode)
+    final appState = context.read<AppState>();
+    if (appState.windowMode == WindowMode.settings) {
+      await windowManager.show();
+      await windowManager.focus();
+    } else {
+      await windowManager.hide();
+    }
   }
 
   @override
@@ -155,12 +193,6 @@ class _MainWrapperState extends State<MainWrapper> with WindowListener {
 
   @override
   void onWindowBlur() async {
-    // Disabled auto-hide since system tray is not working
-    // final appState = context.read<AppState>();
-    // if (appState.isTransitioning) return;
-    // if (appState.windowMode == WindowMode.tray) {
-    //   await windowManager.hide();
-    // }
   }
 
   @override

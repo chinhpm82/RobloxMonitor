@@ -21,7 +21,6 @@ class _ConfigDialogState extends State<ConfigDialog> {
   
   final TextEditingController _botTokenController = TextEditingController();
   final TextEditingController _chatIdController = TextEditingController();
-  final TextEditingController _telegramFrequencyController = TextEditingController();
   final TextEditingController _telegramTemplateController = TextEditingController();
   final TextEditingController _screenshotIntervalController = TextEditingController();
 
@@ -49,7 +48,6 @@ class _ConfigDialogState extends State<ConfigDialog> {
     final appState = context.read<AppState>();
     _botTokenController.text = appState.telegramBotToken;
     _chatIdController.text = appState.telegramChatId;
-    _telegramFrequencyController.text = appState.telegramDebounceMinutes.toString();
     _telegramTemplateController.text = appState.telegramMessageTemplate;
     _screenshotIntervalController.text = appState.screenshotIntervalMinutes.toString();
   }
@@ -99,7 +97,7 @@ class _ConfigDialogState extends State<ConfigDialog> {
     }
 
     return DefaultTabController(
-      length: 5,
+      length: 4,
       child: Container(
         color: const Color(0xFF121212),
         child: Column(
@@ -117,8 +115,7 @@ class _ConfigDialogState extends State<ConfigDialog> {
               isScrollable: true,
               tabs: [
                 Tab(text: context.watch<AppState>().t('tab_schedule')),
-                Tab(text: context.watch<AppState>().t('tab_stats')),
-                Tab(text: context.watch<AppState>().t('tab_system_logs')), 
+                Tab(text: context.watch<AppState>().t('tab_activity_logs')), 
                 Tab(text: context.watch<AppState>().t('tab_notification')),
                 Tab(text: context.watch<AppState>().t('tab_account')),
               ],
@@ -127,7 +124,6 @@ class _ConfigDialogState extends State<ConfigDialog> {
               child: TabBarView(
                 children: [
                    _buildScheduleTab(),
-                   _buildStatsTab(),
                    _buildSystemLogsTab(),
                    _buildNotificationTab(),
                    _buildAccountTab(),
@@ -277,33 +273,13 @@ class _ConfigDialogState extends State<ConfigDialog> {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                flex: 1,
-                child: TextField(
-                  controller: _telegramFrequencyController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    border: const OutlineInputBorder(),
-                    labelText: context.watch<AppState>().t('debounce'),
-                    suffixText: 'm',
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 3,
-                child: TextField(
-                  controller: _telegramTemplateController,
-                  decoration: InputDecoration(
-                    border: const OutlineInputBorder(),
-                    labelText: context.watch<AppState>().t('msg_template'),
-                    hintText: context.watch<AppState>().t('template_hint'),
-                  ),
-                ),
-              ),
-            ],
+          TextField(
+            controller: _telegramTemplateController,
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              labelText: context.watch<AppState>().t('msg_template'),
+              hintText: context.watch<AppState>().t('template_hint'),
+            ),
           ),
           const SizedBox(height: 16),
           Row(
@@ -468,7 +444,6 @@ class _ConfigDialogState extends State<ConfigDialog> {
 
     // Save common settings
     await appState.saveSettings(
-      telegramDebounce: int.tryParse(_telegramFrequencyController.text) ?? 5,
       telegramTemplate: _telegramTemplateController.text,
       screenshotIntervalMinutes: int.tryParse(_screenshotIntervalController.text) ?? 5,
     );
